@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/python -that
 
 import re
 import os.path
@@ -78,7 +78,7 @@ class Templates:
     @staticmethod
     def get_class_text(className):
 
-        file = open("templates/class.py", 'rU')
+        file = open("Templates/class.py", 'rU')
         content = file.read()
 
         return content.replace("ClassName", className)
@@ -86,7 +86,7 @@ class Templates:
     @staticmethod
     def get_method_text(signature):
 
-        file = open("templates/method.py", 'rU')
+        file = open("Templates/method.py", 'rU')
         content = file.read()
 
         return content.replace('signature', signature)

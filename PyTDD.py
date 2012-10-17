@@ -1,6 +1,9 @@
 import os.path
 import sublime, sublime_plugin
 import re
+import sys
+
+from pyrefactor import ClassMenager
 
 class CreateClassCommand(sublime_plugin.TextCommand):
 
@@ -8,11 +11,12 @@ class CreateClassCommand(sublime_plugin.TextCommand):
 
         views = self.window.views()
 
+        fileView = None
         for view in views:
             if fileName == view.file_name():
-                return view
+                fileView = view
 
-        return None
+        return fileView
 
 
     def run(self, edit):
@@ -83,6 +87,8 @@ class AddMethodCommand(sublime_plugin.TextCommand):
         if len(points) < 0:
             return ""
 
+        # Trying to find the closest region to the
+        # region with selected method
         size = len(points)
         for i in range(size):
             reg = points[i][0]
@@ -92,18 +98,7 @@ class AddMethodCommand(sublime_plugin.TextCommand):
 
         return points[-1][1]
 
-    def _get_points(self, line, selection, edit):
-
-        # Constractin the regExp with syntax:
-        # <objectName>.<MethodName>()
-        # obj name will be saved in the first regExp group
-        regExp = "(\w+)\.(" + selection + ").*"
-        match = re.search(regExp, line)
-
-        if match:
-            objName = match.group(1)
-        else:
-            return []
+    def _get_object_defs(self, objName):
 
         # Trying to find object declaration
         # Syntax should something like:
@@ -126,114 +121,61 @@ class AddMethodCommand(sublime_plugin.TextCommand):
 
         return points
 
+    def _get_numofargs(self, args):
+        if len(args) > 0:
+            return len(args.split(','))
+        else:
+            return 0
+
+    def _parse_selection(self, methodName, lineText):
+        """
+        Parsing of selected method invocation
+
+        Method is returning touple (<objectName>, <method args>)
+        """
+        # Get object name and args in a method
+        regExp = "(\w+)\.(" + methodName + ")\((.*)\)"
+        match = re.search(regExp, lineText)
+
+        # exit in case we did not match the selection
+        assert(match)
+
+        return (match.group(1), match.group(3))
+
+    def _get_selection(self):
+        """
+        Get selected text
+
+        Method is returning touple (<full line text>, <selected text>)
+        """
+        selections = self.view.sel()
+        # TODO at the moment only first selection will be processed
+        selRegion = selections[0]
+
+        # Selection should not be empty
+        assert(not selRegion.empty())
+
+        # Get full line text with selection
+        self.lineRegion = self.view.line(selRegion)
+        lineText = self.view.substr(self.lineRegion)
+
+        # Get selected text
+        selText = self.view.substr(selRegion)
+
+        return (lineText, selText)
 
     def run(self, edit):
+        # get selected text
+        (lineText, methodName) = self._get_selection()
 
-        selections = self.view.sel()
-        sel = selections[0]
+        (objName, args) = self._parse_selection(methodName, lineText)
 
-        # Do nothing if user forgot to select something
-        if sel.empty():
-            return
+        # get all defenition of object in current view
+        points = self._get_object_defs(objName)
 
-        # try to get a full line
-        line = self.view.line(sel)
-        lineText = self.view.substr(line)
-        selText = self.view.substr(sel)
-
-        # get all defenition in current view
-        points = self._get_points(lineText, selText, edit)
-
-        className = self.get_class_name(points, line)
-
-        methodText = ClassMenager.get_method_text(selText, 0)
-        self.add_method(className, methodText, edit)
-
-
-class Method:
-    def __init__(self, name, numberArgs = 0):
-        assert(len(name) > 0)
-        self._name = name
-        self._numberArgs = numberArgs
-        self._signature = ""
-
-    def get_name(self):
-        return self._name
-
-    def get_args(self):
-        return self._args
-
-    def get_signature(self):
-        if len(self._signature) == 0:
-            self._signature = self._construct_signature()
+        className = self.get_class_name(points, self.lineRegion)
         
-        return self._signature
+        numOfArgs = self._get_numofargs(args)
 
-    def _construct_signature(self):
-        signature = self._name + "(self"
-
-        for i in range(self._numberArgs):
-            signature += ", arg" + str(i + 1)
-
-        signature += ")"
-
-        return signature
-
-
-class Class:
-    def __init__(self, name, pathToFile):
-        self._name = name
-        self._pathToFile = pathToFile
-        self._methods = []
-
-    def add_method(self, name, numberArgs):
-        pass
-        #assert(len(name) > 0)
-        # TODO - maybe assert that name is valid for Python
-
-        #method = Method(name, numberArgs)
-
-        #sed_cmd = "sed s/signature/'" + method.get_signature() + "'/ " + Templates.methodStub + " >> " + self._pathToFile
-
-        #Utils.run_command(sed_cmd)
-
-        #self._methods.append(method)
-
-        #return method
-
-class ClassMenager:
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def get_method_text(name, numberArgs):
-
-        method = Method(name, numberArgs)
-
-        return Templates.get_method_text(method.get_signature())
-
-    @staticmethod
-    def get_class_text(name):
-        # TODO: it should be possible to generate class signature with
-        # inheretance and constructor with few args
-
-        return Templates.get_class_text(name)
-
-class Templates:
-      
-    @staticmethod
-    def get_class_text(className):
-
-        file = open("Templates/class.py", 'rU')
-        content = file.read()
-
-        return content.replace("ClassName", className)
-
-    @staticmethod
-    def get_method_text(signature):
-
-        file = open("Templates/method.py", 'rU')
-        content = file.read()
-
-        return content.replace('signature', signature)
+        methodText = ClassMenager.get_method_text(methodName, numOfArgs)
+        self.add_method(className, methodText, edit)
