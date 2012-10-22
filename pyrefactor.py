@@ -1,4 +1,4 @@
-#!/usr/bin/python -that
+#!/usr/bin/python -tt
 
 import re
 import os.path
@@ -55,10 +55,6 @@ class Class:
         #return method
 
 class ClassMenager:
-
-    def __init__(self):
-        pass
-
     @staticmethod
     def get_method_text(name, numberArgs):
 
@@ -78,15 +74,17 @@ class Templates:
     @staticmethod
     def get_class_text(className):
 
-        file = open("Templates/class.py", 'rU')
+        file = open("Templates/class.py", 'r')
         content = file.read()
+        #file.close()
 
         return content.replace("ClassName", className)
 
     @staticmethod
     def get_method_text(signature):
 
-        file = open("Templates/method.py", 'rU')
+        file = open("Templates/method.py", 'r')
         content = file.read()
+        file.close()
 
         return content.replace('signature', signature)

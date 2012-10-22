@@ -7,17 +7,13 @@ from pyrefactor import ClassMenager
 
 class CreateClassCommand(sublime_plugin.TextCommand):
 
-    def _get_view(self, fileName):
+    def _get_base(self):
+        return os.path.abspath(os.path.dirname(self.view.file_name()))
 
-        views = self.window.views()
-
-        fileView = None
-        for view in views:
-            if fileName == view.file_name():
-                fileView = view
-
-        return fileView
-
+    def _create_new_file(self, fileName, text):
+        f = open(fileName, 'w')
+        f.write(text)
+        f.close()
 
     def run(self, edit):
         self.window = self.view.window()
@@ -33,27 +29,31 @@ class CreateClassCommand(sublime_plugin.TextCommand):
         else:
             return
 
-        self.window.show_input_panel("Path to file", "", self.on_done, None, None)
+        self.window.show_input_panel("Path to file", self.className + ".py", self.on_done, None, None)
 
     def on_done(self, fileName):
-        # Firstly check that file exist
-        if not os.path.exists(fileName):
-            return # TODO we have to create this file in case it does not exist
 
-        # Trying to find a view associated with this filename
-        fileView = self._get_view(fileName)
-
-        # if was not found let's open it
-        if not fileView:
-            fileView = self.window.open_file(fileName)
+        root = self._get_base()
+        path = os.path.join(root, fileName)
+        path = os.path.normpath(path)
 
         classText = ClassMenager.get_class_text(self.className)
+        assert(classText)
 
-        fEdit = fileView.begin_edit()
-        # TODO: at the moment there is an assumption that file is empty
-        fileView.insert(fEdit, 0, classText)
-        fileView.end_edit(fEdit)
-	
+        fileUpdated = False
+        if not os.path.exists(path):
+            self._create_new_file(path, classText)
+            fileUpdated = True
+
+        fileView = self.window.open_file(path)
+       
+        if not fileUpdated:
+            fEdit = fileView.begin_edit()
+            # TODO: at the moment there is an assumption that file is empty
+            # adding new text at the begining
+            fileView.insert(fEdit, 0, "classText")
+            fileView.end_edit(fEdit)
+
 
 class AddMethodCommand(sublime_plugin.TextCommand):
 
@@ -179,3 +179,4 @@ class AddMethodCommand(sublime_plugin.TextCommand):
 
         methodText = ClassMenager.get_method_text(methodName, numOfArgs)
         self.add_method(className, methodText, edit)
+
